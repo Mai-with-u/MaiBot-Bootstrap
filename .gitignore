@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Go build outputs
+/maibot
+*.exe
+*.out
+*.test
+
+# Local release artifacts
+dist/
+
+# IDE/editor
+.idea/
+.vscode/
+
+devdocs/
