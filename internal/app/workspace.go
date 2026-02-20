@@ -49,7 +49,7 @@ func (a *App) workspaceDir(name string) (string, error) {
 		return "", err
 	}
 	if !found {
-		return "", fmt.Errorf("workspace is not initialized in current directory, run: maibot init")
+		return "", fmt.Errorf(a.t("err.workspace_not_initialized_run_init"))
 	}
 	return dir, nil
 }
@@ -189,14 +189,14 @@ func (a *App) startInstance(name string) error {
 	cfg, err := a.readWorkspaceConfig(selected)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("workspace is not initialized, run: maibot install")
+			return fmt.Errorf(a.t("err.workspace_not_initialized_run_init"))
 		}
 		return err
 	}
 
 	if cfg.PID > 0 {
 		if process.IsAlive(cfg.PID) {
-			a.instanceLog.Infof("workspace already running with pid %d", cfg.PID)
+			a.instanceLog.Infof(a.tf("log.workspace_already_running", cfg.PID))
 			return nil
 		}
 		cfg.PID = 0
@@ -256,7 +256,7 @@ func (a *App) stopInstance(name string) error {
 	cfg, err := a.readWorkspaceConfig(selected)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("workspace is not initialized, run: maibot install")
+			return fmt.Errorf(a.t("err.workspace_not_initialized_run_init"))
 		}
 		return err
 	}
@@ -288,7 +288,7 @@ func (a *App) statusInstance(name string) error {
 	cfg, err := a.readWorkspaceConfig(name)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("workspace is not initialized")
+			return fmt.Errorf(a.t("err.workspace_not_initialized"))
 		}
 		return err
 	}
@@ -316,7 +316,7 @@ func (a *App) logsInstance(name string, tail int) error {
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("workspace log not found")
+			return fmt.Errorf(a.t("err.workspace_log_not_found"))
 		}
 		return err
 	}
@@ -343,12 +343,12 @@ func (a *App) runInstance(id string, displayName string) {
 		interval = d
 	}
 
-	a.instanceLog.Infof("workspace worker started: %s (%s)", displayName, id)
+	a.instanceLog.Infof(a.tf("log.workspace_worker_started", displayName, id))
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		a.instanceLog.Infof("heartbeat workspace=%s id=%s", displayName, id)
+		a.instanceLog.Infof(a.tf("log.workspace_heartbeat", displayName, id))
 	}
 }
 
@@ -356,7 +356,7 @@ func (a *App) updateInstance(name string) error {
 	cfg, err := a.readWorkspaceConfig(name)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("workspace is not initialized, run: maibot install")
+			return fmt.Errorf(a.t("err.workspace_not_initialized_run_init"))
 		}
 		return err
 	}
@@ -498,7 +498,7 @@ func (a *App) listWorkspaces(roots []string, maxDepth int) error {
 	})
 
 	if len(rows) == 0 {
-		fmt.Println("no workspace found")
+		fmt.Println(a.t("help.no_workspace_found"))
 		return nil
 	}
 	for _, r := range rows {

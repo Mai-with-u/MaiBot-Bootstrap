@@ -22,6 +22,7 @@ const (
 
 type App struct {
 	cfg         config.Config
+	i18n        *localizer
 	log         *logging.Logger
 	instanceLog *logging.Logger
 	updateLog   *logging.Logger
@@ -45,6 +46,7 @@ func New() (*App, error) {
 	}
 	return &App{
 		cfg:         cfg,
+		i18n:        newLocalizer(cfg.Installer.Language),
 		log:         rootLog.Module("app"),
 		instanceLog: rootLog.Module("instance"),
 		updateLog:   rootLog.Module("update"),
@@ -55,13 +57,13 @@ func New() (*App, error) {
 
 func (a *App) Run(args []string) {
 	if err := a.Execute(args); err != nil {
-		a.log.Fatalf("command failed: %v", err)
+		a.log.Fatalf(a.tf("log.command_failed", err))
 	}
 }
 
 func (a *App) Execute(args []string) error {
 	if err := a.validateConfig(); err != nil {
-		return fmt.Errorf("invalid config: %w", err)
+		return fmt.Errorf(a.tf("err.invalid_config", err))
 	}
 	cmd := a.newRootCommand()
 	cmd.SetArgs(args)
@@ -95,7 +97,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		if st, err := os.Stat(abs); err != nil {
 			return err
 		} else if !st.IsDir() {
-			return fmt.Errorf("-C path is not a directory: %s", abs)
+			return fmt.Errorf(a.tf("err.chdir_not_directory", abs))
 		}
 		return os.Chdir(abs)
 	}
@@ -104,7 +106,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		if err := a.installInstance(defaultName); err != nil {
 			return err
 		}
-		a.instanceLog.Okf("single workspace initialized")
+		a.instanceLog.Okf(a.t("log.workspace_initialized"))
 		return nil
 	}})
 
@@ -112,7 +114,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		if err := a.startInstance(defaultName); err != nil {
 			return err
 		}
-		a.instanceLog.Okf("workspace started")
+		a.instanceLog.Okf(a.t("log.workspace_started"))
 		return nil
 	}})
 
@@ -120,7 +122,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		if err := a.stopInstance(defaultName); err != nil {
 			return err
 		}
-		a.instanceLog.Okf("workspace stopped")
+		a.instanceLog.Okf(a.t("log.workspace_stopped"))
 		return nil
 	}})
 
@@ -128,7 +130,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		if err := a.restartInstance(defaultName); err != nil {
 			return err
 		}
-		a.instanceLog.Okf("workspace restarted")
+		a.instanceLog.Okf(a.t("log.workspace_restarted"))
 		return nil
 	}})
 
@@ -147,7 +149,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		if err := a.updateInstance(defaultName); err != nil {
 			return err
 		}
-		a.updateLog.Okf("workspace updated")
+		a.updateLog.Okf(a.t("log.workspace_updated"))
 		return nil
 	}})
 
@@ -155,7 +157,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		if err := a.selfUpdate(); err != nil {
 			return err
 		}
-		a.updateLog.Okf("maibot updated successfully")
+		a.updateLog.Okf(a.t("log.maibot_upgraded"))
 		return nil
 	}})
 
@@ -180,12 +182,12 @@ func (a *App) newRootCommand() *cobra.Command {
 	cleanup := &cobra.Command{Use: "cleanup", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		testArtifacts, _ := cmd.Flags().GetBool("test-artifacts")
 		if !testArtifacts {
-			return fmt.Errorf("usage: maibot cleanup --test-artifacts")
+			return fmt.Errorf(a.t("err.cleanup_usage"))
 		}
 		if err := a.cleanup(); err != nil {
 			return err
 		}
-		a.cleanupLog.Okf("cleanup completed")
+		a.cleanupLog.Okf(a.t("log.cleanup_completed"))
 		return nil
 	}}
 	cleanup.Flags().Bool("test-artifacts", false, "Clean local test artifacts")
@@ -223,7 +225,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		a.modulesLog.Okf("module install completed module=%s source=%s attempts=%d", report.Module, report.Source, len(report.Attempts))
+		a.modulesLog.Okf(a.tf("log.module_install_completed", report.Module, report.Source, len(report.Attempts)))
 		return nil
 	}}
 	modulesList := &cobra.Command{Use: "list", Aliases: []string{"ls"}, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
@@ -235,7 +237,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		for _, def := range defs {
 			desc := strings.TrimSpace(def.Description)
 			if desc == "" {
-				desc = "(no description)"
+				desc = a.t("modules.no_description")
 			}
 			fmt.Printf("%s\t%s\n", def.Name, desc)
 		}
@@ -261,27 +263,38 @@ func (a *App) newRootCommand() *cobra.Command {
 }
 
 func (a *App) printHelp() {
-	fmt.Println("MaiBot CLI")
+	fmt.Println(a.t("help.title"))
 	fmt.Println()
-	fmt.Println("Usage:")
-	fmt.Println("  maibot init                Initialize .maibot in current directory")
-	fmt.Println("  maibot install             Alias of init")
-	fmt.Println("  maibot create              Alias of init")
-	fmt.Println("  maibot start               Start workspace")
-	fmt.Println("  maibot stop                Stop workspace")
-	fmt.Println("  maibot restart             Restart workspace")
-	fmt.Println("  maibot status              Show workspace status")
-	fmt.Println("  maibot workspace ls [paths...]   Discover workspaces under paths")
-	fmt.Println("  maibot logs [--tail N]     Show workspace logs")
-	fmt.Println("  maibot update              Update workspace")
-	fmt.Println("  maibot upgrade             Upgrade maibot command")
-	fmt.Println("  maibot modules install <name>  Install module by catalog name")
-	fmt.Println("  maibot modules list        List configured/catalog modules")
-	fmt.Println("  maibot service <action>    Manage workspace service")
-	fmt.Println("  maibot run <cmd...>        Run developer command")
-	fmt.Println("  maibot cleanup --test-artifacts  Clean local test artifacts")
-	fmt.Println("  maibot version             Print version")
-	fmt.Println("  maibot -C <dir> ...        Run command against another directory")
+	fmt.Println(a.t("help.usage"))
+	fmt.Println(a.t("help.init"))
+	fmt.Println(a.t("help.install"))
+	fmt.Println(a.t("help.create"))
+	fmt.Println(a.t("help.start"))
+	fmt.Println(a.t("help.stop"))
+	fmt.Println(a.t("help.restart"))
+	fmt.Println(a.t("help.status"))
+	fmt.Println(a.t("help.workspace_ls"))
+	fmt.Println(a.t("help.logs"))
+	fmt.Println(a.t("help.update"))
+	fmt.Println(a.t("help.upgrade"))
+	fmt.Println(a.t("help.modules_install"))
+	fmt.Println(a.t("help.modules_list"))
+	fmt.Println(a.t("help.service"))
+	fmt.Println(a.t("help.run"))
+	fmt.Println(a.t("help.cleanup"))
+	fmt.Println(a.t("help.version"))
+	fmt.Println(a.t("help.chdir"))
+}
+
+func (a *App) t(key string) string {
+	if a == nil || a.i18n == nil {
+		return key
+	}
+	return a.i18n.T(key)
+}
+
+func (a *App) tf(key string, args ...any) string {
+	return fmt.Sprintf(a.t(key), args...)
 }
 
 func (a *App) validateConfig() error {

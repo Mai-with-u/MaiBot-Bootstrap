@@ -8,12 +8,12 @@ import (
 	"strings"
 )
 
-type tuiI18n struct {
+type localizer struct {
 	locale string
 	items  map[string]string
 }
 
-func newTUII18n(preferred string) *tuiI18n {
+func newLocalizer(preferred string) *localizer {
 	locale := resolveLocale(preferred)
 	dict := loadCatalog(locale)
 	if dict == nil {
@@ -23,10 +23,10 @@ func newTUII18n(preferred string) *tuiI18n {
 	if dict == nil {
 		dict = map[string]string{}
 	}
-	return &tuiI18n{locale: locale, items: dict}
+	return &localizer{locale: locale, items: dict}
 }
 
-func (t *tuiI18n) T(key string) string {
+func (t *localizer) T(key string) string {
 	if t == nil {
 		return key
 	}
@@ -37,6 +37,12 @@ func (t *tuiI18n) T(key string) string {
 		return v
 	}
 	return key
+}
+
+type tuiI18n = localizer
+
+func newTUII18n(preferred string) *tuiI18n {
+	return newLocalizer(preferred)
 }
 
 func resolveLocale(preferred string) string {

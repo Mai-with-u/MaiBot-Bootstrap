@@ -98,11 +98,11 @@ func (a *App) serviceAction(action, _ string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("service=%s status=%v\n", serviceName, status)
+		fmt.Printf(a.tf("service.status_line", serviceName, status))
 	default:
-		return fmt.Errorf("unsupported service action: %s", action)
+		return fmt.Errorf(a.tf("err.service_unsupported_action", action))
 	}
-	a.instanceLog.Infof("service action %s completed", action)
+	a.instanceLog.Infof(a.tf("log.service_action_completed", action))
 	return nil
 }
 

@@ -37,7 +37,7 @@ func (a *App) selfUpdate() error {
 		target = manifest.InstallerVersion
 	}
 	if target == current {
-		a.log.Infof("already latest: %s", current)
+		a.log.Infof(a.tf("log.already_latest", current))
 		return nil
 	}
 
@@ -46,7 +46,7 @@ func (a *App) selfUpdate() error {
 		url = fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", a.cfg.Installer.Repo, manifest.Version, asset.Name)
 	}
 
-	a.updateLog.Infof("downloading %s", url)
+	a.updateLog.Infof(a.tf("log.downloading", url))
 	binaryData, err := fetch(url)
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func (a *App) selfUpdate() error {
 		return err
 	}
 	_ = os.Remove(backupPath)
-	a.updateLog.Infof("updated from %s to %s", current, target)
+	a.updateLog.Infof(a.tf("log.updated_from_to", current, target))
 	return nil
 }
 
@@ -119,7 +119,7 @@ func (a *App) verifySignatureIfRequired(asset release.Asset, assetURL string, bi
 		if a.cfg.Updater.RequireSignature {
 			return fmt.Errorf("failed to fetch signature: %w", err)
 		}
-		a.updateLog.Warnf("signature verify skipped: %v", err)
+		a.updateLog.Warnf(a.tf("log.signature_verify_skipped", err))
 		return nil
 	}
 
@@ -138,7 +138,7 @@ func (a *App) verifySignatureIfRequired(asset release.Asset, assetURL string, bi
 	if !valid {
 		return errors.New("signature verification failed")
 	}
-	a.updateLog.Infof("signature verified")
+	a.updateLog.Infof(a.t("log.signature_verified"))
 	return nil
 }
 

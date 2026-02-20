@@ -57,7 +57,7 @@ func (a *App) removeWorkspace() error {
 	if err := removePathIfExists(dir); err != nil {
 		return err
 	}
-	a.cleanupLog.Infof("cleanup workspace artifacts completed")
+	a.cleanupLog.Infof(a.t("log.cleanup_workspace_artifacts_completed"))
 	return nil
 }
 
