@@ -16,6 +16,89 @@ need_cmd() {
   fi
 }
 
+check_prereqs() {
+  local -a required missing
+  local cmd
+  required=(git uv)
+  missing=()
+
+  for cmd in "${required[@]}"; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      missing+=("$cmd")
+    fi
+  done
+
+  if [ "${#missing[@]}" -ne 0 ]; then
+    err "missing required system tools: ${missing[*]}"
+    log "installer can try to install them automatically after confirmation"
+    if [ ! -t 0 ] || [ ! -t 1 ]; then
+      err "non-interactive shell detected; cannot ask for confirmation"
+      log "please install missing tools manually and rerun"
+      log "macOS (Homebrew): brew install ${missing[*]}"
+      log "Debian/Ubuntu: sudo apt-get update && sudo apt-get install -y ${missing[*]}"
+      log "Fedora/CentOS: sudo dnf install -y ${missing[*]} || sudo yum install -y ${missing[*]}"
+      exit 1
+    fi
+
+    printf 'Install missing tools now? [y/N]: '
+    read -r answer
+    case "${answer}" in
+      y|Y|yes|YES)
+        install_missing_tools "${missing[@]}"
+        ;;
+      *)
+        err "installation aborted by user"
+        exit 1
+        ;;
+    esac
+  fi
+}
+
+run_with_privilege() {
+  if [ "$(id -u)" -eq 0 ]; then
+    "$@"
+    return
+  fi
+  if ! command -v sudo >/dev/null 2>&1; then
+    err "sudo is required to install system packages"
+    exit 1
+  fi
+  sudo "$@"
+}
+
+install_missing_tools() {
+  local -a tools
+  tools=("$@")
+
+  if command -v brew >/dev/null 2>&1; then
+    log "installing via Homebrew: ${tools[*]}"
+    brew install "${tools[@]}"
+    return
+  fi
+
+  if command -v apt-get >/dev/null 2>&1; then
+    log "installing via apt-get: ${tools[*]}"
+    run_with_privilege apt-get update -y
+    run_with_privilege apt-get install -y "${tools[@]}"
+    return
+  fi
+
+  if command -v dnf >/dev/null 2>&1; then
+    log "installing via dnf: ${tools[*]}"
+    run_with_privilege dnf install -y "${tools[@]}"
+    return
+  fi
+
+  if command -v yum >/dev/null 2>&1; then
+    log "installing via yum: ${tools[*]}"
+    run_with_privilege yum install -y "${tools[@]}"
+    return
+  fi
+
+  err "unsupported package manager; install manually: ${tools[*]}"
+  exit 1
+}
+
 fetch() {
   local url="$1"
   local out="$2"
@@ -99,6 +182,7 @@ verify_checksum() {
 }
 
 main() {
+  check_prereqs
   need_cmd mkdir
   need_cmd chmod
   need_cmd mktemp

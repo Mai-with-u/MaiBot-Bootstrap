@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 )
 
@@ -23,6 +24,7 @@ type Options struct {
 	Sensitive   bool
 	RequireSudo bool
 	Prompt      string
+	Env         map[string]string
 }
 
 func NewRunner() *Runner {
@@ -53,9 +55,15 @@ func (r *Runner) Run(ctx context.Context, name string, args []string, opts Optio
 		if err := r.ensureSudo(ctx); err != nil {
 			return err
 		}
-		return r.exec(ctx, "sudo", append([]string{name}, args...)...)
+		sudoArgs := []string{name}
+		if len(opts.Env) > 0 {
+			sudoArgs = append([]string{"env"}, envArgs(opts.Env)...)
+			sudoArgs = append(sudoArgs, name)
+		}
+		sudoArgs = append(sudoArgs, args...)
+		return r.exec(ctx, "sudo", sudoArgs, opts.Env)
 	}
-	return r.exec(ctx, name, args...)
+	return r.exec(ctx, name, args, opts.Env)
 }
 
 func (r *Runner) confirm(prompt string) (bool, error) {
@@ -84,12 +92,28 @@ func (r *Runner) ensureSudo(ctx context.Context) error {
 	return cmd.Run()
 }
 
-func (r *Runner) exec(ctx context.Context, name string, args ...string) error {
+func (r *Runner) exec(ctx context.Context, name string, args []string, env map[string]string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = r.In
 	cmd.Stdout = r.Out
 	cmd.Stderr = r.Err
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), envArgs(env)...)
+	}
 	return cmd.Run()
+}
+
+func envArgs(env map[string]string) []string {
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, fmt.Sprintf("%s=%s", k, env[k]))
+	}
+	return out
 }
 
 func isTTY() bool {

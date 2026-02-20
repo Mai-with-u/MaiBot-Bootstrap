@@ -41,6 +41,7 @@ type tuiModel struct {
 	rootMenu      []tuiAction
 	instanceMenu  []tuiAction
 	serviceMenu   []tuiAction
+	modulesMenu   []tuiAction
 	cursor        int
 	mode          tuiMode
 	activeAction  int
@@ -84,10 +85,19 @@ func newTUIModel(i18n *tuiI18n) tuiModel {
 		{id: "back", labelKey: "action.back", build: func(_ []string) []string { return nil }},
 	}
 
+	modulesMenu := []tuiAction{
+		{id: "modules-list", labelKey: "action.modules_list", build: func(_ []string) []string { return []string{"modules", "list"} }},
+		{id: "modules-install", labelKey: "action.modules_install", fields: []tuiField{{labelKey: "field.module_name", def: "napcat"}}, build: func(v []string) []string {
+			return []string{"modules", "install", nonEmpty(v[0], "napcat")}
+		}},
+		{id: "back", labelKey: "action.back", build: func(_ []string) []string { return nil }},
+	}
+
 	rootMenu := []tuiAction{
 		{id: "instances", labelKey: "menu.instances", build: func(_ []string) []string { return nil }},
 		{id: "services", labelKey: "menu.services", build: func(_ []string) []string { return nil }},
-		{id: "self-update", labelKey: "action.self_update", build: func(_ []string) []string { return []string{"self-update"} }},
+		{id: "modules", labelKey: "menu.modules", build: func(_ []string) []string { return nil }},
+		{id: "self-update", labelKey: "action.self_update", build: func(_ []string) []string { return []string{"upgrade"} }},
 		{id: "version", labelKey: "action.version", build: func(_ []string) []string { return []string{"version"} }},
 		{id: "help", labelKey: "action.help", build: func(_ []string) []string { return []string{"help"} }},
 		{id: "quit", labelKey: "action.quit", quit: true, build: func(_ []string) []string { return nil }},
@@ -100,6 +110,7 @@ func newTUIModel(i18n *tuiI18n) tuiModel {
 		rootMenu:     rootMenu,
 		instanceMenu: instanceMenu,
 		serviceMenu:  serviceMenu,
+		modulesMenu:  modulesMenu,
 		mode:         tuiModeMenu,
 		activeAction: -1,
 	}
@@ -153,6 +164,9 @@ func (m tuiModel) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if action.id == "services" {
 			return m.pushMenu(m.serviceMenu), nil
+		}
+		if action.id == "modules" {
+			return m.pushMenu(m.modulesMenu), nil
 		}
 		if action.id == "back" {
 			return m.popMenu(), nil

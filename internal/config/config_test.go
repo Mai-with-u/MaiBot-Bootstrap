@@ -63,3 +63,20 @@ func TestLoadOrCreateMigratesLegacyConfig(t *testing.T) {
 		t.Fatalf("expected migration backup file")
 	}
 }
+
+func TestApplyDefaultsAddsSharedDownloadMirrorsToGit(t *testing.T) {
+	base := t.TempDir()
+	cfg := Config{
+		Installer: Installer{DataHome: base},
+		Logging:   Logging{FilePath: filepath.Join(base, "logs", "installer.log")},
+		Mirrors:   Mirrors{URLs: []string{"https://ghfast.top", "https://gh-proxy.com"}},
+		Git:       Git{Mirrors: []GitMirror{}},
+	}
+	out := applyDefaults(cfg, base)
+	if len(out.Git.Mirrors) < 2 {
+		t.Fatalf("git mirrors len=%d, want >=2", len(out.Git.Mirrors))
+	}
+	if out.Git.Mirrors[0].BaseURL != "https://ghfast.top" {
+		t.Fatalf("first shared mirror=%q", out.Git.Mirrors[0].BaseURL)
+	}
+}

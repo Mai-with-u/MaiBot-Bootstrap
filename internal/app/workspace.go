@@ -128,7 +128,14 @@ func (a *App) installInstance(name string) error {
 	if err != nil {
 		return err
 	}
+	workspaceRoot := filepath.Dir(dir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, "modules"), 0o755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, "MaiBot"), 0o755); err != nil {
 		return err
 	}
 

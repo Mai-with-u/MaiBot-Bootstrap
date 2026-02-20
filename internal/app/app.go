@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"maibot/internal/config"
 	"maibot/internal/logging"
+	"maibot/internal/modules"
 	"maibot/internal/version"
 )
 
@@ -25,6 +26,7 @@ type App struct {
 	instanceLog *logging.Logger
 	updateLog   *logging.Logger
 	cleanupLog  *logging.Logger
+	modulesLog  *logging.Logger
 }
 
 func New() (*App, error) {
@@ -47,6 +49,7 @@ func New() (*App, error) {
 		instanceLog: rootLog.Module("instance"),
 		updateLog:   rootLog.Module("update"),
 		cleanupLog:  rootLog.Module("cleanup"),
+		modulesLog:  rootLog.Module("modules"),
 	}, nil
 }
 
@@ -148,7 +151,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		return nil
 	}})
 
-	root.AddCommand(&cobra.Command{Use: "self-update", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	root.AddCommand(&cobra.Command{Use: "upgrade", Aliases: []string{"self-update"}, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		if err := a.selfUpdate(); err != nil {
 			return err
 		}
@@ -213,6 +216,34 @@ func (a *App) newRootCommand() *cobra.Command {
 	workspaceCmd.AddCommand(workspaceList)
 	root.AddCommand(workspaceCmd)
 
+	modulesCmd := &cobra.Command{Use: "modules", Short: "Manage installable modules"}
+	modulesInstall := &cobra.Command{Use: "install <module>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		mgr := modules.New(a.cfg.Modules, a.cfg.Mirrors, a.modulesLog, nil)
+		report, err := mgr.Install(cmd.Context(), args[0])
+		if err != nil {
+			return err
+		}
+		a.modulesLog.Okf("module install completed module=%s source=%s attempts=%d", report.Module, report.Source, len(report.Attempts))
+		return nil
+	}}
+	modulesList := &cobra.Command{Use: "list", Aliases: []string{"ls"}, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		mgr := modules.New(a.cfg.Modules, a.cfg.Mirrors, a.modulesLog, nil)
+		defs, err := mgr.List(cmd.Context())
+		if err != nil {
+			return err
+		}
+		for _, def := range defs {
+			desc := strings.TrimSpace(def.Description)
+			if desc == "" {
+				desc = "(no description)"
+			}
+			fmt.Printf("%s\t%s\n", def.Name, desc)
+		}
+		return nil
+	}}
+	modulesCmd.AddCommand(modulesInstall, modulesList)
+	root.AddCommand(modulesCmd)
+
 	root.AddCommand(&cobra.Command{Use: instanceProc, Hidden: true, RunE: func(cmd *cobra.Command, args []string) error {
 		id := workspaceID
 		displayName := defaultName
@@ -243,7 +274,9 @@ func (a *App) printHelp() {
 	fmt.Println("  maibot workspace ls [paths...]   Discover workspaces under paths")
 	fmt.Println("  maibot logs [--tail N]     Show workspace logs")
 	fmt.Println("  maibot update              Update workspace")
-	fmt.Println("  maibot self-update         Update maibot command")
+	fmt.Println("  maibot upgrade             Upgrade maibot command")
+	fmt.Println("  maibot modules install <name>  Install module by catalog name")
+	fmt.Println("  maibot modules list        List configured/catalog modules")
 	fmt.Println("  maibot service <action>    Manage workspace service")
 	fmt.Println("  maibot run <cmd...>        Run developer command")
 	fmt.Println("  maibot cleanup --test-artifacts  Clean local test artifacts")

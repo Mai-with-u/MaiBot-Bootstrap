@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	kservice "github.com/kardianos/service"
@@ -63,11 +64,11 @@ func (a *App) serviceAction(action, _ string) error {
 		args:       []string{instanceProc, workspaceID, defaultName},
 		workdir:    workdir,
 	}
-	serviceName := "maibot-workspace"
+	serviceName := workspaceServiceName(workdir)
 	svc, err := kservice.New(prg, &kservice.Config{
 		Name:             serviceName,
 		DisplayName:      "MaiBot Workspace",
-		Description:      "MaiBot single workspace service",
+		Description:      "MaiBot workspace service " + serviceName,
 		Arguments:        prg.args,
 		WorkingDirectory: workdir,
 	})
@@ -103,4 +104,38 @@ func (a *App) serviceAction(action, _ string) error {
 	}
 	a.instanceLog.Infof("service action %s completed", action)
 	return nil
+}
+
+func workspaceServiceName(workdir string) string {
+	workspaceRoot := filepath.Dir(workdir)
+	base := sanitizeServiceToken(filepath.Base(workspaceRoot))
+	hash := sha256Hex([]byte(workspaceRoot))
+	if len(hash) > 8 {
+		hash = hash[:8]
+	}
+	name := fmt.Sprintf("maibot-%s-%s", base, hash)
+	if len(name) > 80 {
+		name = name[:80]
+	}
+	return name
+}
+
+func sanitizeServiceToken(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "workspace"
+	}
+	var b strings.Builder
+	for _, r := range raw {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if out == "" {
+		return "workspace"
+	}
+	return out
 }
