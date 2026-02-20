@@ -49,7 +49,7 @@ func (a *App) workspaceDir(name string) (string, error) {
 		return "", err
 	}
 	if !found {
-		return "", fmt.Errorf(a.t("err.workspace_not_initialized_run_init"))
+		return "", errors.New(a.t("err.workspace_not_initialized_run_init"))
 	}
 	return dir, nil
 }
@@ -189,7 +189,7 @@ func (a *App) startInstance(name string) error {
 	cfg, err := a.readWorkspaceConfig(selected)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf(a.t("err.workspace_not_initialized_run_init"))
+			return errors.New(a.t("err.workspace_not_initialized_run_init"))
 		}
 		return err
 	}
@@ -256,7 +256,7 @@ func (a *App) stopInstance(name string) error {
 	cfg, err := a.readWorkspaceConfig(selected)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf(a.t("err.workspace_not_initialized_run_init"))
+			return errors.New(a.t("err.workspace_not_initialized_run_init"))
 		}
 		return err
 	}
@@ -288,7 +288,7 @@ func (a *App) statusInstance(name string) error {
 	cfg, err := a.readWorkspaceConfig(name)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf(a.t("err.workspace_not_initialized"))
+			return errors.New(a.t("err.workspace_not_initialized"))
 		}
 		return err
 	}
@@ -316,7 +316,7 @@ func (a *App) logsInstance(name string, tail int) error {
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf(a.t("err.workspace_log_not_found"))
+			return errors.New(a.t("err.workspace_log_not_found"))
 		}
 		return err
 	}
@@ -356,7 +356,7 @@ func (a *App) updateInstance(name string) error {
 	cfg, err := a.readWorkspaceConfig(name)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf(a.t("err.workspace_not_initialized_run_init"))
+			return errors.New(a.t("err.workspace_not_initialized_run_init"))
 		}
 		return err
 	}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -98,9 +99,9 @@ func (a *App) serviceAction(action, _ string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf(a.tf("service.status_line", serviceName, status))
+		fmt.Print(a.tf("service.status_line", serviceName, status))
 	default:
-		return fmt.Errorf(a.tf("err.service_unsupported_action", action))
+		return errors.New(a.tf("err.service_unsupported_action", action))
 	}
 	a.instanceLog.Infof(a.tf("log.service_action_completed", action))
 	return nil

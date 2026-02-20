@@ -63,7 +63,7 @@ func (a *App) Run(args []string) {
 
 func (a *App) Execute(args []string) error {
 	if err := a.validateConfig(); err != nil {
-		return fmt.Errorf(a.tf("err.invalid_config", err))
+		return errors.New(a.tf("err.invalid_config", err))
 	}
 	cmd := a.newRootCommand()
 	cmd.SetArgs(args)
@@ -97,7 +97,7 @@ func (a *App) newRootCommand() *cobra.Command {
 		if st, err := os.Stat(abs); err != nil {
 			return err
 		} else if !st.IsDir() {
-			return fmt.Errorf(a.tf("err.chdir_not_directory", abs))
+			return errors.New(a.tf("err.chdir_not_directory", abs))
 		}
 		return os.Chdir(abs)
 	}
@@ -182,7 +182,7 @@ func (a *App) newRootCommand() *cobra.Command {
 	cleanup := &cobra.Command{Use: "cleanup", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		testArtifacts, _ := cmd.Flags().GetBool("test-artifacts")
 		if !testArtifacts {
-			return fmt.Errorf(a.t("err.cleanup_usage"))
+			return errors.New(a.t("err.cleanup_usage"))
 		}
 		if err := a.cleanup(); err != nil {
 			return err
