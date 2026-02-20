@@ -63,25 +63,24 @@ func (a *App) runInteractiveTUI() {
 
 func newTUIModel(i18n *tuiI18n) tuiModel {
 	instanceMenu := []tuiAction{
-		{id: "install", labelKey: "action.install", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"install", nonEmpty(v[0], defaultName)} }},
-		{id: "start", labelKey: "action.start", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"start", nonEmpty(v[0], defaultName)} }},
-		{id: "stop", labelKey: "action.stop", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"stop", nonEmpty(v[0], defaultName)} }},
-		{id: "restart", labelKey: "action.restart", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"restart", nonEmpty(v[0], defaultName)} }},
-		{id: "status", labelKey: "action.status", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"status", nonEmpty(v[0], defaultName)} }},
-		{id: "logs", labelKey: "action.logs", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}, {labelKey: "field.tail_lines", def: "50"}}, build: func(v []string) []string {
-			return []string{"logs", nonEmpty(v[0], defaultName), "--tail", nonEmpty(v[1], "50")}
+		{id: "install", labelKey: "action.install", build: func(_ []string) []string { return []string{"install"} }},
+		{id: "start", labelKey: "action.start", build: func(_ []string) []string { return []string{"start"} }},
+		{id: "stop", labelKey: "action.stop", build: func(_ []string) []string { return []string{"stop"} }},
+		{id: "restart", labelKey: "action.restart", build: func(_ []string) []string { return []string{"restart"} }},
+		{id: "status", labelKey: "action.status", build: func(_ []string) []string { return []string{"status"} }},
+		{id: "logs", labelKey: "action.logs", fields: []tuiField{{labelKey: "field.tail_lines", def: "50"}}, build: func(v []string) []string {
+			return []string{"logs", "--tail", nonEmpty(v[0], "50")}
 		}},
-		{id: "list", labelKey: "action.list", build: func(_ []string) []string { return []string{"list"} }},
-		{id: "update", labelKey: "action.update", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"update", nonEmpty(v[0], defaultName)} }},
+		{id: "update", labelKey: "action.update", build: func(_ []string) []string { return []string{"update"} }},
 		{id: "back", labelKey: "action.back", build: func(_ []string) []string { return nil }},
 	}
 
 	serviceMenu := []tuiAction{
-		{id: "service-install", labelKey: "action.service_install", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"service", "install", nonEmpty(v[0], defaultName)} }},
-		{id: "service-start", labelKey: "action.service_start", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"service", "start", nonEmpty(v[0], defaultName)} }},
-		{id: "service-stop", labelKey: "action.service_stop", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"service", "stop", nonEmpty(v[0], defaultName)} }},
-		{id: "service-status", labelKey: "action.service_status", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"service", "status", nonEmpty(v[0], defaultName)} }},
-		{id: "service-uninstall", labelKey: "action.service_uninstall", fields: []tuiField{{labelKey: "field.instance_name", def: defaultName}}, build: func(v []string) []string { return []string{"service", "uninstall", nonEmpty(v[0], defaultName)} }},
+		{id: "service-install", labelKey: "action.service_install", build: func(_ []string) []string { return []string{"service", "install"} }},
+		{id: "service-start", labelKey: "action.service_start", build: func(_ []string) []string { return []string{"service", "start"} }},
+		{id: "service-stop", labelKey: "action.service_stop", build: func(_ []string) []string { return []string{"service", "stop"} }},
+		{id: "service-status", labelKey: "action.service_status", build: func(_ []string) []string { return []string{"service", "status"} }},
+		{id: "service-uninstall", labelKey: "action.service_uninstall", build: func(_ []string) []string { return []string{"service", "uninstall"} }},
 		{id: "back", labelKey: "action.back", build: func(_ []string) []string { return nil }},
 	}
 
@@ -89,20 +88,6 @@ func newTUIModel(i18n *tuiI18n) tuiModel {
 		{id: "instances", labelKey: "menu.instances", build: func(_ []string) []string { return nil }},
 		{id: "services", labelKey: "menu.services", build: func(_ []string) []string { return nil }},
 		{id: "self-update", labelKey: "action.self_update", build: func(_ []string) []string { return []string{"self-update"} }},
-		{id: "cleanup", labelKey: "action.cleanup", fields: []tuiField{{labelKey: "field.cleanup_names", def: ""}}, build: func(v []string) []string {
-			args := []string{"cleanup", "--test-artifacts"}
-			raw := strings.TrimSpace(v[0])
-			if raw == "" {
-				return args
-			}
-			for _, part := range strings.Split(raw, ",") {
-				n := strings.TrimSpace(part)
-				if n != "" {
-					args = append(args, n)
-				}
-			}
-			return args
-		}},
 		{id: "version", labelKey: "action.version", build: func(_ []string) []string { return []string{"version"} }},
 		{id: "help", labelKey: "action.help", build: func(_ []string) []string { return []string{"help"} }},
 		{id: "quit", labelKey: "action.quit", quit: true, build: func(_ []string) []string { return nil }},

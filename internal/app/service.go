@@ -21,7 +21,7 @@ type instanceServiceProgram struct {
 func (p *instanceServiceProgram) Start(kservice.Service) error {
 	p.cmd = exec.Command(p.executable, p.args...)
 	p.cmd.Dir = p.workdir
-	logFile := filepath.Join(p.workdir, "instance.log")
+	logFile := filepath.Join(p.workdir, "workspace.log")
 	f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
@@ -46,9 +46,12 @@ func (p *instanceServiceProgram) Stop(kservice.Service) error {
 	return process.Stop(p.cmd.Process.Pid, 5*time.Second)
 }
 
-func (a *App) serviceAction(action, name string) error {
-	target, err := a.resolveInstanceTarget(name)
+func (a *App) serviceAction(action, _ string) error {
+	workdir, err := a.workspaceDir()
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(workdir, 0o755); err != nil {
 		return err
 	}
 	exe, err := os.Executable()
@@ -57,16 +60,16 @@ func (a *App) serviceAction(action, name string) error {
 	}
 	prg := &instanceServiceProgram{
 		executable: exe,
-		args:       []string{instanceProc, target.ID, target.DisplayName},
-		workdir:    target.Dir,
+		args:       []string{instanceProc, workspaceID, defaultName},
+		workdir:    workdir,
 	}
-	serviceName := "maibot-" + target.ID[:12]
+	serviceName := "maibot-workspace"
 	svc, err := kservice.New(prg, &kservice.Config{
 		Name:             serviceName,
-		DisplayName:      "MaiBot " + target.DisplayName,
-		Description:      "MaiBot managed instance " + target.DisplayName,
+		DisplayName:      "MaiBot Workspace",
+		Description:      "MaiBot single workspace service",
 		Arguments:        prg.args,
-		WorkingDirectory: target.Dir,
+		WorkingDirectory: workdir,
 	})
 	if err != nil {
 		return err
@@ -98,6 +101,6 @@ func (a *App) serviceAction(action, name string) error {
 	default:
 		return fmt.Errorf("unsupported service action: %s", action)
 	}
-	a.instanceLog.Infof("service action %s completed for %s", action, target.DisplayName)
+	a.instanceLog.Infof("service action %s completed", action)
 	return nil
 }

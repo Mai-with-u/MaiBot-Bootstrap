@@ -3,7 +3,6 @@ package app
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -13,8 +12,8 @@ import (
 )
 
 const (
-	instanceProc  = "run-instance"
-	defaultName   = "default"
+	instanceProc  = "run-single"
+	defaultName   = "main"
 	configVersion = 1
 )
 
@@ -71,69 +70,61 @@ func (a *App) newRootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "maibot",
 		Short: "MaiBot CLI",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			a.runInteractiveTUI()
 			return nil
 		},
 	}
 
-	root.AddCommand(&cobra.Command{Use: "install [name]", Aliases: []string{"create"}, Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		name := resolveInstanceName(args)
-		if err := a.installInstance(name); err != nil {
+	root.AddCommand(&cobra.Command{Use: "install", Aliases: []string{"create", "init"}, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		if err := a.installInstance(defaultName); err != nil {
 			return err
 		}
-		a.instanceLog.Okf("instance %q installed", name)
+		a.instanceLog.Okf("single workspace initialized")
 		return nil
 	}})
 
-	root.AddCommand(&cobra.Command{Use: "start [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		name := resolveInstanceName(args)
-		if err := a.startInstance(name); err != nil {
+	root.AddCommand(&cobra.Command{Use: "start", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		if err := a.startInstance(defaultName); err != nil {
 			return err
 		}
-		a.instanceLog.Okf("instance %q started", name)
+		a.instanceLog.Okf("workspace started")
 		return nil
 	}})
 
-	root.AddCommand(&cobra.Command{Use: "stop [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		name := resolveInstanceName(args)
-		if err := a.stopInstance(name); err != nil {
+	root.AddCommand(&cobra.Command{Use: "stop", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		if err := a.stopInstance(defaultName); err != nil {
 			return err
 		}
-		a.instanceLog.Okf("instance %q stopped", name)
+		a.instanceLog.Okf("workspace stopped")
 		return nil
 	}})
 
-	root.AddCommand(&cobra.Command{Use: "restart [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		name := resolveInstanceName(args)
-		if err := a.restartInstance(name); err != nil {
+	root.AddCommand(&cobra.Command{Use: "restart", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		if err := a.restartInstance(defaultName); err != nil {
 			return err
 		}
-		a.instanceLog.Okf("instance %q restarted", name)
+		a.instanceLog.Okf("workspace restarted")
 		return nil
 	}})
 
-	root.AddCommand(&cobra.Command{Use: "status [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		return a.statusInstance(resolveInstanceName(args))
+	root.AddCommand(&cobra.Command{Use: "status", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		return a.statusInstance(defaultName)
 	}})
 
-	logs := &cobra.Command{Use: "logs [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	logs := &cobra.Command{Use: "logs", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		tail, _ := cmd.Flags().GetInt("tail")
-		return a.logsInstance(resolveInstanceName(args), tail)
+		return a.logsInstance(defaultName, tail)
 	}}
 	logs.Flags().Int("tail", 50, "Tail lines")
 	root.AddCommand(logs)
 
-	root.AddCommand(&cobra.Command{Use: "list", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
-		return a.listInstances()
-	}})
-
-	root.AddCommand(&cobra.Command{Use: "update [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		name := resolveInstanceName(args)
-		if err := a.updateInstance(name); err != nil {
+	root.AddCommand(&cobra.Command{Use: "update", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		if err := a.updateInstance(defaultName); err != nil {
 			return err
 		}
-		a.updateLog.Okf("instance %q updated", name)
+		a.updateLog.Okf("workspace updated")
 		return nil
 	}})
 
@@ -145,31 +136,30 @@ func (a *App) newRootCommand() *cobra.Command {
 		return nil
 	}})
 
-	serviceCmd := &cobra.Command{Use: "service", Short: "Manage OS service for an instance"}
-	serviceCmd.AddCommand(&cobra.Command{Use: "install [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		return a.serviceAction("install", resolveInstanceName(args))
+	serviceCmd := &cobra.Command{Use: "service", Short: "Manage OS service for single workspace"}
+	serviceCmd.AddCommand(&cobra.Command{Use: "install", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		return a.serviceAction("install", defaultName)
 	}})
-	serviceCmd.AddCommand(&cobra.Command{Use: "uninstall [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		return a.serviceAction("uninstall", resolveInstanceName(args))
+	serviceCmd.AddCommand(&cobra.Command{Use: "uninstall", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		return a.serviceAction("uninstall", defaultName)
 	}})
-	serviceCmd.AddCommand(&cobra.Command{Use: "start [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		return a.serviceAction("start", resolveInstanceName(args))
+	serviceCmd.AddCommand(&cobra.Command{Use: "start", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		return a.serviceAction("start", defaultName)
 	}})
-	serviceCmd.AddCommand(&cobra.Command{Use: "stop [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		return a.serviceAction("stop", resolveInstanceName(args))
+	serviceCmd.AddCommand(&cobra.Command{Use: "stop", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		return a.serviceAction("stop", defaultName)
 	}})
-	serviceCmd.AddCommand(&cobra.Command{Use: "status [name]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		return a.serviceAction("status", resolveInstanceName(args))
+	serviceCmd.AddCommand(&cobra.Command{Use: "status", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		return a.serviceAction("status", defaultName)
 	}})
 	root.AddCommand(serviceCmd)
 
-	cleanup := &cobra.Command{Use: "cleanup", Args: cobra.ArbitraryArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	cleanup := &cobra.Command{Use: "cleanup", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		testArtifacts, _ := cmd.Flags().GetBool("test-artifacts")
 		if !testArtifacts {
-			return fmt.Errorf("usage: maibot cleanup --test-artifacts [instance_names...]")
+			return fmt.Errorf("usage: maibot cleanup --test-artifacts")
 		}
-		cleanArgs := append([]string{"--test-artifacts"}, args...)
-		if err := a.cleanup(cleanArgs); err != nil {
+		if err := a.cleanup(); err != nil {
 			return err
 		}
 		a.cleanupLog.Okf("cleanup completed")
@@ -189,16 +179,19 @@ func (a *App) newRootCommand() *cobra.Command {
 	runCmd.Flags().String("prompt", "", "Custom confirmation prompt")
 	root.AddCommand(runCmd)
 
-	root.AddCommand(&cobra.Command{Use: "version", Aliases: []string{"--version", "-v"}, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	root.AddCommand(&cobra.Command{Use: "version", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println(version.InstallerVersion)
 		return nil
 	}})
 
 	root.AddCommand(&cobra.Command{Use: instanceProc, Hidden: true, RunE: func(cmd *cobra.Command, args []string) error {
-		id := resolveInstanceName(args)
-		displayName := id
-		if len(args) > 1 {
-			displayName = args[1]
+		id := workspaceID
+		displayName := defaultName
+		if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
+			id = strings.TrimSpace(args[0])
+		}
+		if len(args) > 1 && strings.TrimSpace(args[1]) != "" {
+			displayName = strings.TrimSpace(args[1])
 		}
 		a.runInstance(id, displayName)
 		return nil
@@ -211,49 +204,19 @@ func (a *App) printHelp() {
 	fmt.Println("MaiBot CLI")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  maibot install [name]      Install an instance")
-	fmt.Println("  maibot create [name]       Alias of install")
-	fmt.Println("  maibot start [name]        Start an instance")
-	fmt.Println("  maibot stop [name]         Stop an instance")
-	fmt.Println("  maibot restart [name]      Restart an instance")
-	fmt.Println("  maibot status [name]       Show instance status")
-	fmt.Println("  maibot logs [name] [--tail N]  Show instance logs")
-	fmt.Println("  maibot update [name]       Update an instance")
+	fmt.Println("  maibot install             Initialize single workspace")
+	fmt.Println("  maibot create              Alias of install")
+	fmt.Println("  maibot start               Start workspace")
+	fmt.Println("  maibot stop                Stop workspace")
+	fmt.Println("  maibot restart             Restart workspace")
+	fmt.Println("  maibot status              Show workspace status")
+	fmt.Println("  maibot logs [--tail N]     Show workspace logs")
+	fmt.Println("  maibot update              Update workspace")
 	fmt.Println("  maibot self-update         Update maibot command")
-	fmt.Println("  maibot list                List all instances")
-	fmt.Println("  maibot cleanup --test-artifacts [names...]  Clean local test artifacts")
+	fmt.Println("  maibot service <action>    Manage workspace service")
+	fmt.Println("  maibot run <cmd...>        Run developer command")
+	fmt.Println("  maibot cleanup --test-artifacts  Clean local test artifacts")
 	fmt.Println("  maibot version             Print version")
-}
-
-func resolveInstanceName(args []string) string {
-	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
-		return defaultName
-	}
-	return args[0]
-}
-
-func resolveLogsArgs(args []string) (name string, tail int) {
-	name = defaultName
-	tail = 50
-	if len(args) == 0 {
-		return name, tail
-	}
-
-	idx := 0
-	if args[0] != "--tail" {
-		name = args[0]
-		if strings.TrimSpace(name) == "" {
-			name = defaultName
-		}
-		idx = 1
-	}
-	if len(args) >= idx+2 && args[idx] == "--tail" {
-		parsed := strings.TrimSpace(args[idx+1])
-		if v, err := strconv.Atoi(parsed); err == nil && v > 0 {
-			tail = v
-		}
-	}
-	return name, tail
 }
 
 func (a *App) validateConfig() error {
