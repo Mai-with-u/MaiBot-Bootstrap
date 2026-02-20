@@ -3,6 +3,8 @@ package app
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -77,7 +79,25 @@ func (a *App) newRootCommand() *cobra.Command {
 		},
 	}
 
-	root.AddCommand(&cobra.Command{Use: "install", Aliases: []string{"create", "init"}, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	var chdirPath string
+	root.PersistentFlags().StringVarP(&chdirPath, "directory", "C", "", "Run as if maibot was started in this path")
+	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if strings.TrimSpace(chdirPath) == "" {
+			return nil
+		}
+		abs, err := filepath.Abs(chdirPath)
+		if err != nil {
+			return err
+		}
+		if st, err := os.Stat(abs); err != nil {
+			return err
+		} else if !st.IsDir() {
+			return fmt.Errorf("-C path is not a directory: %s", abs)
+		}
+		return os.Chdir(abs)
+	}
+
+	root.AddCommand(&cobra.Command{Use: "init", Aliases: []string{"install", "create"}, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		if err := a.installInstance(defaultName); err != nil {
 			return err
 		}
@@ -184,6 +204,15 @@ func (a *App) newRootCommand() *cobra.Command {
 		return nil
 	}})
 
+	workspaceCmd := &cobra.Command{Use: "workspace", Short: "Workspace helpers"}
+	workspaceList := &cobra.Command{Use: "ls [paths...]", Aliases: []string{"list"}, Args: cobra.ArbitraryArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		maxDepth, _ := cmd.Flags().GetInt("max-depth")
+		return a.listWorkspaces(args, maxDepth)
+	}}
+	workspaceList.Flags().Int("max-depth", 4, "Max recursive search depth")
+	workspaceCmd.AddCommand(workspaceList)
+	root.AddCommand(workspaceCmd)
+
 	root.AddCommand(&cobra.Command{Use: instanceProc, Hidden: true, RunE: func(cmd *cobra.Command, args []string) error {
 		id := workspaceID
 		displayName := defaultName
@@ -204,12 +233,14 @@ func (a *App) printHelp() {
 	fmt.Println("MaiBot CLI")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  maibot install             Initialize single workspace")
-	fmt.Println("  maibot create              Alias of install")
+	fmt.Println("  maibot init                Initialize .maibot in current directory")
+	fmt.Println("  maibot install             Alias of init")
+	fmt.Println("  maibot create              Alias of init")
 	fmt.Println("  maibot start               Start workspace")
 	fmt.Println("  maibot stop                Stop workspace")
 	fmt.Println("  maibot restart             Restart workspace")
 	fmt.Println("  maibot status              Show workspace status")
+	fmt.Println("  maibot workspace ls [paths...]   Discover workspaces under paths")
 	fmt.Println("  maibot logs [--tail N]     Show workspace logs")
 	fmt.Println("  maibot update              Update workspace")
 	fmt.Println("  maibot self-update         Update maibot command")
@@ -217,6 +248,7 @@ func (a *App) printHelp() {
 	fmt.Println("  maibot run <cmd...>        Run developer command")
 	fmt.Println("  maibot cleanup --test-artifacts  Clean local test artifacts")
 	fmt.Println("  maibot version             Print version")
+	fmt.Println("  maibot -C <dir> ...        Run command against another directory")
 }
 
 func (a *App) validateConfig() error {

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,32 +42,89 @@ func (a *App) dataRoot() (string, error) {
 	return root, nil
 }
 
-func (a *App) workspaceDir() (string, error) {
-	root, err := a.dataRoot()
+func (a *App) workspaceDir(name string) (string, error) {
+	_, _ = a, name
+	dir, found, err := detectWorkspaceDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(root, "workspace"), nil
+	if !found {
+		return "", fmt.Errorf("workspace is not initialized in current directory, run: maibot init")
+	}
+	return dir, nil
 }
 
-func (a *App) workspaceConfigPath() (string, error) {
-	dir, err := a.workspaceDir()
+func workspaceDirForInit() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(cwd, ".maibot"), nil
+}
+
+func detectWorkspaceDir() (string, bool, error) {
+	start, err := os.Getwd()
+	if err != nil {
+		return "", false, err
+	}
+	cur := start
+	for {
+		candidate := filepath.Join(cur, ".maibot")
+		st, statErr := os.Stat(candidate)
+		if statErr == nil && st.IsDir() {
+			return candidate, true, nil
+		}
+		if statErr != nil && !os.IsNotExist(statErr) {
+			return "", false, statErr
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			break
+		}
+		cur = parent
+	}
+	return "", false, nil
+}
+
+func sanitizeWorkspaceName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return defaultName
+	}
+	var b strings.Builder
+	for _, r := range trimmed {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+	result := strings.Trim(b.String(), "-")
+	if result == "" {
+		return defaultName
+	}
+	return result
+}
+
+func (a *App) workspaceConfigPath(name string) (string, error) {
+	dir, err := a.workspaceDir(name)
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(dir, "config.json"), nil
 }
 
-func (a *App) workspaceLogPath() (string, error) {
-	dir, err := a.workspaceDir()
+func (a *App) workspaceLogPath(name string) (string, error) {
+	dir, err := a.workspaceDir(name)
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(dir, "workspace.log"), nil
 }
 
-func (a *App) installInstance(_ string) error {
-	dir, err := a.workspaceDir()
+func (a *App) installInstance(name string) error {
+	_, _ = a, name
+	dir, err := workspaceDirForInit()
 	if err != nil {
 		return err
 	}
@@ -75,23 +133,27 @@ func (a *App) installInstance(_ string) error {
 	}
 
 	now := time.Now().UTC()
+	workspaceName := sanitizeWorkspaceName(name)
+	if workspaceName == "" {
+		workspaceName = defaultName
+	}
 	cfg := workspaceConfig{
 		Version:   configVersion,
-		Name:      defaultName,
+		Name:      workspaceName,
 		CreatedAt: now,
 		UpdatedAt: now,
 		Status:    workspaceStateInstalled,
 		PID:       0,
 	}
 
-	configPath, err := a.workspaceConfigPath()
-	if err != nil {
-		return err
-	}
-	if existing, readErr := a.readWorkspaceConfig(); readErr == nil {
+	configPath := filepath.Join(dir, "config.json")
+	var readErr error
+	var existing workspaceConfig
+	existing, readErr = readWorkspaceConfigByPath(configPath)
+	if readErr == nil {
 		cfg = existing
 		if cfg.Name == "" {
-			cfg.Name = defaultName
+			cfg.Name = workspaceName
 		}
 		if cfg.CreatedAt.IsZero() {
 			cfg.CreatedAt = now
@@ -104,10 +166,7 @@ func (a *App) installInstance(_ string) error {
 		return err
 	}
 
-	logPath, err := a.workspaceLogPath()
-	if err != nil {
-		return err
-	}
+	logPath := filepath.Join(dir, "workspace.log")
 	f, err := os.OpenFile(logPath, os.O_CREATE, 0o644)
 	if err != nil {
 		return err
@@ -118,8 +177,9 @@ func (a *App) installInstance(_ string) error {
 	return nil
 }
 
-func (a *App) startInstance(_ string) error {
-	cfg, err := a.readWorkspaceConfig()
+func (a *App) startInstance(name string) error {
+	selected := sanitizeWorkspaceName(name)
+	cfg, err := a.readWorkspaceConfig(selected)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("workspace is not initialized, run: maibot install")
@@ -135,7 +195,7 @@ func (a *App) startInstance(_ string) error {
 		cfg.PID = 0
 	}
 
-	dir, err := a.workspaceDir()
+	dir, err := a.workspaceDir(selected)
 	if err != nil {
 		return err
 	}
@@ -143,7 +203,7 @@ func (a *App) startInstance(_ string) error {
 	if err != nil {
 		return err
 	}
-	logPath, err := a.workspaceLogPath()
+	logPath, err := a.workspaceLogPath(selected)
 	if err != nil {
 		return err
 	}
@@ -152,7 +212,7 @@ func (a *App) startInstance(_ string) error {
 		return err
 	}
 
-	cmd := exec.Command(exe, instanceProc, workspaceID, defaultName)
+	cmd := exec.Command(exe, instanceProc, workspaceID, selected)
 	cmd.Dir = dir
 	cmd.Stdout = lf
 	cmd.Stderr = lf
@@ -174,7 +234,7 @@ func (a *App) startInstance(_ string) error {
 	cfg.Status = workspaceStateRunning
 	cfg.PID = pid
 	cfg.UpdatedAt = time.Now().UTC()
-	configPath, err := a.workspaceConfigPath()
+	configPath, err := a.workspaceConfigPath(selected)
 	if err != nil {
 		return err
 	}
@@ -184,8 +244,9 @@ func (a *App) startInstance(_ string) error {
 	return nil
 }
 
-func (a *App) stopInstance(_ string) error {
-	cfg, err := a.readWorkspaceConfig()
+func (a *App) stopInstance(name string) error {
+	selected := sanitizeWorkspaceName(name)
+	cfg, err := a.readWorkspaceConfig(selected)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("workspace is not initialized, run: maibot install")
@@ -201,7 +262,7 @@ func (a *App) stopInstance(_ string) error {
 	cfg.Status = workspaceStateStopped
 	cfg.PID = 0
 	cfg.UpdatedAt = time.Now().UTC()
-	configPath, err := a.workspaceConfigPath()
+	configPath, err := a.workspaceConfigPath(selected)
 	if err != nil {
 		return err
 	}
@@ -209,14 +270,15 @@ func (a *App) stopInstance(_ string) error {
 }
 
 func (a *App) restartInstance(_ string) error {
-	if err := a.stopInstance(defaultName); err != nil {
+	selected := sanitizeWorkspaceName(defaultName)
+	if err := a.stopInstance(selected); err != nil {
 		return err
 	}
-	return a.startInstance(defaultName)
+	return a.startInstance(selected)
 }
 
-func (a *App) statusInstance(_ string) error {
-	cfg, err := a.readWorkspaceConfig()
+func (a *App) statusInstance(name string) error {
+	cfg, err := a.readWorkspaceConfig(name)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("workspace is not initialized")
@@ -239,8 +301,8 @@ func (a *App) statusInstance(_ string) error {
 	return nil
 }
 
-func (a *App) logsInstance(_ string, tail int) error {
-	logPath, err := a.workspaceLogPath()
+func (a *App) logsInstance(name string, tail int) error {
+	logPath, err := a.workspaceLogPath(name)
 	if err != nil {
 		return err
 	}
@@ -283,8 +345,8 @@ func (a *App) runInstance(id string, displayName string) {
 	}
 }
 
-func (a *App) updateInstance(_ string) error {
-	cfg, err := a.readWorkspaceConfig()
+func (a *App) updateInstance(name string) error {
+	cfg, err := a.readWorkspaceConfig(name)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("workspace is not initialized, run: maibot install")
@@ -293,7 +355,7 @@ func (a *App) updateInstance(_ string) error {
 	}
 	cfg.Status = workspaceStateUpdating
 	cfg.UpdatedAt = time.Now().UTC()
-	configPath, err := a.workspaceConfigPath()
+	configPath, err := a.workspaceConfigPath(name)
 	if err != nil {
 		return err
 	}
@@ -305,11 +367,15 @@ func (a *App) updateInstance(_ string) error {
 	return writeWorkspaceConfig(configPath, cfg)
 }
 
-func (a *App) readWorkspaceConfig() (workspaceConfig, error) {
-	configPath, err := a.workspaceConfigPath()
+func (a *App) readWorkspaceConfig(name string) (workspaceConfig, error) {
+	configPath, err := a.workspaceConfigPath(name)
 	if err != nil {
 		return workspaceConfig{}, err
 	}
+	return readWorkspaceConfigByPath(configPath)
+}
+
+func readWorkspaceConfigByPath(configPath string) (workspaceConfig, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return workspaceConfig{}, err
@@ -336,4 +402,104 @@ func writeWorkspaceConfig(path string, cfg workspaceConfig) error {
 func sha256Hex(in []byte) string {
 	sum := sha256.Sum256(in)
 	return hex.EncodeToString(sum[:])
+}
+
+func (a *App) listWorkspaces(roots []string, maxDepth int) error {
+	if len(roots) == 0 {
+		roots = []string{"."}
+	}
+
+	currentMarker := ""
+	if curDir, found, err := detectWorkspaceDir(); err == nil && found {
+		currentMarker = curDir
+	}
+
+	type row struct {
+		name string
+		root string
+	}
+	rows := make([]row, 0)
+	seen := map[string]bool{}
+	processWorkspace := func(workspaceRoot string) {
+		if seen[workspaceRoot] {
+			return
+		}
+		cfgPath := filepath.Join(workspaceRoot, ".maibot", "config.json")
+		cfg, cfgErr := readWorkspaceConfigByPath(cfgPath)
+		if cfgErr != nil {
+			cfg = workspaceConfig{Name: filepath.Base(workspaceRoot)}
+		}
+		rows = append(rows, row{name: cfg.Name, root: workspaceRoot})
+		seen[workspaceRoot] = true
+	}
+
+	type scanNode struct {
+		path  string
+		depth int
+	}
+
+	for _, root := range roots {
+		absRoot, err := filepath.Abs(root)
+		if err != nil {
+			return err
+		}
+
+		queue := []scanNode{{path: absRoot, depth: 0}}
+		for len(queue) > 0 {
+			node := queue[0]
+			queue = queue[1:]
+
+			entries, err := os.ReadDir(node.path)
+			if err != nil {
+				return err
+			}
+
+			hasWorkspace := false
+			for _, entry := range entries {
+				if entry.IsDir() && entry.Name() == ".maibot" {
+					hasWorkspace = true
+					break
+				}
+			}
+			if hasWorkspace {
+				processWorkspace(node.path)
+				continue
+			}
+
+			if maxDepth >= 0 && node.depth >= maxDepth {
+				continue
+			}
+
+			for _, entry := range entries {
+				if !entry.IsDir() {
+					continue
+				}
+				name := entry.Name()
+				if name == ".git" || name == "node_modules" || name == ".idea" || name == "vendor" || name == "dist" || name == "build" || strings.HasPrefix(name, ".") {
+					continue
+				}
+				queue = append(queue, scanNode{path: filepath.Join(node.path, name), depth: node.depth + 1})
+			}
+		}
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].name == rows[j].name {
+			return rows[i].root < rows[j].root
+		}
+		return rows[i].name < rows[j].name
+	})
+
+	if len(rows) == 0 {
+		fmt.Println("no workspace found")
+		return nil
+	}
+	for _, r := range rows {
+		marker := " "
+		if currentMarker != "" && filepath.Join(r.root, ".maibot") == currentMarker {
+			marker = "*"
+		}
+		fmt.Printf("%s %s\t%s\n", marker, r.name, r.root)
+	}
+	return nil
 }

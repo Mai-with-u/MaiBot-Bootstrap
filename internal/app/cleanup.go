@@ -44,11 +44,11 @@ func cleanupRepoArtifacts() error {
 }
 
 func (a *App) removeWorkspace() error {
-	dir, err := a.workspaceDir()
+	dir, err := a.workspaceDir(defaultName)
 	if err != nil {
 		return err
 	}
-	cfg, err := a.readWorkspaceConfig()
+	cfg, err := a.readWorkspaceConfig(defaultName)
 	if err == nil && cfg.PID > 0 {
 		if process.IsAlive(cfg.PID) {
 			_ = process.Stop(cfg.PID, 5*time.Second)

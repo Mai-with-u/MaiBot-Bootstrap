@@ -44,11 +44,10 @@ type Config struct {
 }
 
 func LoadOrCreate() (Config, error) {
-	home, err := os.UserHomeDir()
+	base, err := resolveBaseDir()
 	if err != nil {
 		return Config{}, err
 	}
-	base := filepath.Join(home, ".maibot")
 	path := filepath.Join(base, "maibot.conf")
 	legacyPath := filepath.Join(base, "config.json")
 
@@ -88,6 +87,18 @@ func LoadOrCreate() (Config, error) {
 		return Config{}, err
 	}
 	return loadWithKoanf(path, base)
+}
+
+func resolveBaseDir() (string, error) {
+	if explicit := strings.TrimSpace(os.Getenv("MAIBOT_HOME")); explicit != "" {
+		return explicit, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".maibot"), nil
 }
 
 func loadFromPath(path string) (Config, error) {

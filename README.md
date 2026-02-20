@@ -1,7 +1,7 @@
 # MaiBot Bootstrap（单实例 CLI + TUI）
 
-本项目提供 MaiBot 的一键安装入口与跨平台命令行管理能力，专注单实例工作区（默认 `main`）。
-支持 curl + bash 首装，之后通过 `maibot` 命令完成初始化、启动停止、更新、服务管理与开发工具操作。
+本项目提供 MaiBot 的一键安装入口与跨平台命令行管理能力。
+采用 Git 风格 workspace：在项目目录执行 `maibot init` 创建 `.maibot/`，后续在该目录（或其子目录）运行命令即可。
 
 ## 快速安装
 
@@ -19,15 +19,17 @@ maibot version
 
 ## 常用命令
 
-工作区管理：
+工作区管理（Git 风格）：
 
 ```bash
-maibot install
+maibot init
 maibot start
 maibot status
 maibot logs --tail 100
 maibot update
 maibot stop
+maibot workspace ls .
+maibot -C ../other-workspace status
 ```
 
 服务管理：
@@ -50,7 +52,9 @@ maibot run echo devtool
 
 ## 配置
 
-配置文件位于 `~/.maibot/maibot.conf`，为 JSON 格式。首次运行自动生成，支持环境变量覆盖（`MAIBOT_` 前缀）。
+全局配置文件默认位于 `~/.maibot/maibot.conf`，为 JSON 格式。
+workspace 运行数据位于工作区目录下的 `.maibot/`（通过 `maibot init` 创建）。
+支持环境变量覆盖（`MAIBOT_` 前缀）。
 
 核心字段示例：
 
@@ -90,7 +94,8 @@ go build ./cmd/maibot
 
 ## 说明
 
-本项目遵循 Go 推荐目录结构，核心逻辑位于 `internal/`，入口在 `cmd/maibot`。工作区配置与运行数据默认存放于 `~/.maibot`。
+本项目遵循 Go 推荐目录结构，核心逻辑位于 `internal/`，入口在 `cmd/maibot`。
+每个 workspace 的运行数据默认存放在该 workspace 根目录的 `.maibot/`。
 
-`cleanup --test-artifacts` 默认仅清理 `~/.maibot/workspace` 与锁文件。
+`cleanup --test-artifacts` 默认仅清理当前 workspace 的 `.maibot/` 与全局锁文件。
 若要额外清理当前仓库下的 `./maibot`、`./dist`，请显式设置环境变量：`MAIBOT_ALLOW_DEV_CLEANUP=1`。

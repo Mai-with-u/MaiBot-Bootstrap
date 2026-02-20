@@ -47,7 +47,7 @@ func (p *instanceServiceProgram) Stop(kservice.Service) error {
 }
 
 func (a *App) serviceAction(action, _ string) error {
-	workdir, err := a.workspaceDir()
+	workdir, err := a.workspaceDir(defaultName)
 	if err != nil {
 		return err
 	}
